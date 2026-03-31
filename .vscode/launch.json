@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: student_code.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/Assignment 1 code/Assignment-1/code/student_code.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/Assignment 1 code/Assignment-1/code",
+      "justMyCode": true
+    },
+    {
+      "name": "Jupyter: proj1.ipynb",
+      "type": "jupyter",
+      "request": "launch",
+      "notebook": "${workspaceFolder}/Assignment 1 code/Assignment-1/code/proj1.ipynb"
+    },
+    {
+      "name": "Jupyter: proj1_test_filtering.ipynb",
+      "type": "jupyter",
+      "request": "launch",
+      "notebook": "${workspaceFolder}/Assignment 1 code/Assignment-1/code/proj1_test_filtering.ipynb"
+    }
+  ]
+}

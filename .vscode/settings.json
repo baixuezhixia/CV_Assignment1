@@ -1,0 +1,8 @@
+{
+  "jupyter.notebookFileRoot": "${fileDirname}",
+  "jupyter.kernels.filter": [],
+  "python.terminal.activateEnvironment": true,
+  "files.associations": {
+    "*.ipynb": "jupyter-notebook"
+  }
+}
