@@ -1,83 +1,176 @@
+"""
+student_code.py — CV Assignment 1
+==================================
+作业说明 / Assignment Overview
+-------------------------------
+本次作业要求我们从零实现两个核心功能：
+1. my_imfilter      — 图像滤波（卷积）
+2. create_hybrid_image — 混合图像生成
+
+下面对每一步都有详细的中英文注释，帮助你理解原理。
+"""
+
 import numpy as np
+
+# ============================================================
+# 第一部分：图像滤波 (Image Filtering / Convolution)
+# ============================================================
+#
+# 【核心概念】什么是图像滤波？
+# 图像可以看作一个二维数组（灰度图）或三维数组（彩色图：行×列×3通道）。
+# 滤波（卷积）就是用一个小矩阵（称为"滤波器"或"卷积核"，kernel/filter）
+# 在图像上滑动，对每个位置计算"邻域像素的加权求和"。
+#
+# 数学公式（以灰度图为例，图像 I，滤波器 K，输出 O）：
+#   O[y, x] = Σ_{i,j} K[i, j] * I[y - fh//2 + i, x - fw//2 + j]
+#
+# 其中 fh, fw 是滤波器的高度和宽度，(i, j) 遍历滤波器的所有位置。
+#
+# 【为什么要 padding（填充）？】
+# 当滤波器处理图像边缘的像素时，会需要图像边界以外的数据。
+# 填充（padding）就是在图像四周"补"一些像素，使得边缘也能正常计算。
+# 本实现使用 "reflect"（镜像）填充：把边缘像素镜像翻转后填到外侧，
+# 这比补零（zero padding）视觉效果更自然。
+#
+# 【为什么要求滤波器的宽高都是奇数？】
+# 奇数尺寸（1,3,5,7,...）保证滤波器有一个确定的"中心像素"，
+# 从而输出图像大小与输入图像完全相同（same convolution）。
 
 def my_imfilter(image, filter):
   """
   Apply a filter to an image. Return the filtered image.
+  对图像应用滤波器，返回滤波后的图像。
 
   Args
-  - image: numpy nd-array of dim (m, n, c)
-  - filter: numpy nd-array of dim (k, k)
+  - image:  numpy nd-array of dim (m, n, c)   输入图像，像素值在 [0, 1] 之间
+  - filter: numpy nd-array of dim (k, k)       滤波器（卷积核），必须是奇数尺寸
   Returns
-  - filtered_image: numpy nd-array of dim (m, n, c)
-
-  HINTS:
-  - You may not use any libraries that do the work for you. Using numpy to work
-   with matrices is fine and encouraged. Using opencv or similar to do the
-   filtering for you is not allowed.
-  - I encourage you to try implementing this naively first, just be aware that
-   it may take an absurdly long time to run. You will need to get a function
-   that takes a reasonable amount of time to run so that the TAs can verify
-   your code works.
-  - Remember these are RGB images, accounting for the final image dimension.
+  - filtered_image: numpy nd-array of dim (m, n, c)  输出图像，与输入同尺寸
   """
 
-  assert filter.shape[0] % 2 == 1
-  assert filter.shape[1] % 2 == 1
+  # 【断言】确保滤波器高度和宽度都是奇数，否则没有明确的中心点
+  # assert 在条件为 False 时会抛出 AssertionError，帮助我们尽早发现错误
+  assert filter.shape[0] % 2 == 1   # 高度必须为奇数
+  assert filter.shape[1] % 2 == 1   # 宽度必须为奇数
 
   ############################
   ### TODO: YOUR CODE HERE ###
 
-  # Handle both grayscale (2D) and color (3D) images uniformly
+  # ----------------------------------------------------------
+  # 步骤 1：统一处理灰度图和彩色图
+  # ----------------------------------------------------------
+  # 灰度图的 ndim == 2，shape 为 (m, n)
+  # 彩色图的 ndim == 3，shape 为 (m, n, 3)
+  # 为了让后续代码统一处理，我们把灰度图临时扩展成 (m, n, 1)
+  # np.newaxis 的作用就是在指定位置插入一个长度为 1 的新维度
   squeeze = False
   if image.ndim == 2:
-    image = image[:, :, np.newaxis]
-    squeeze = True
+    image = image[:, :, np.newaxis]  # (m, n) → (m, n, 1)
+    squeeze = True                   # 最后记得再压缩回去
 
-  m, n, c = image.shape
-  fh, fw = filter.shape
+  # 读取图像和滤波器的尺寸
+  m, n, c = image.shape     # m 行, n 列, c 通道 (彩色图 c=3，灰度图 c=1)
+  fh, fw = filter.shape     # fh: 滤波器高度, fw: 滤波器宽度
+
+  # 计算需要在图像四周填充多少像素
+  # 例如 3×3 滤波器：ph=1, pw=1（上下左右各补 1 行/列）
+  # 例如 7×7 滤波器：ph=3, pw=3
   ph, pw = fh // 2, fw // 2
 
-  # Pad image with reflected content to preserve edge information
+  # ----------------------------------------------------------
+  # 步骤 2：边缘填充（Padding）
+  # ----------------------------------------------------------
+  # np.pad 的第二个参数 ((top, bottom), (left, right), (front, back))
+  # 这里对行（高）方向上下各补 ph 行，对列（宽）方向左右各补 pw 列，
+  # 通道方向不补（(0, 0)）。
+  # mode='reflect' 表示镜像填充，例如边缘像素序列 [a, b, c] 会变成
+  #   [..., c, b, a, b, c, ...]，视觉上比补零更连续。
   padded = np.pad(image, ((ph, ph), (pw, pw), (0, 0)), mode='reflect')
+  # padded 的尺寸：(m + 2*ph, n + 2*pw, c)
 
-  # Accumulate the weighted, shifted copies of the padded image
-  filtered_image = np.zeros_like(image, dtype=np.float32)
-  for i in range(fh):
-    for j in range(fw):
+  # ----------------------------------------------------------
+  # 步骤 3：卷积主循环（高效向量化实现）
+  # ----------------------------------------------------------
+  # 初学者最容易理解的"朴素实现"是四重循环：
+  #   for y in range(m):
+  #     for x in range(n):
+  #       for i in range(fh):
+  #         for j in range(fw):
+  #           filtered_image[y,x,:] += filter[i,j] * padded[y+i, x+j, :]
+  # 但这样对于大图像会非常慢（可能需要数分钟）。
+  #
+  # 【向量化优化】：我们可以把最外两层（遍历图像像素的 y,x 循环）
+  # 改成 numpy 的切片操作，一次性处理整张图像：
+  #
+  #   padded[i : i+m, j : j+n, :]
+  #
+  # 这个切片取出了"把图像向右移动 j 列、向下移动 i 行"之后的版本。
+  # 乘以 filter[i, j] 就相当于把每个像素都用该滤波器权重缩放，
+  # 最后累加所有 (i, j) 的贡献，就得到了完整的卷积结果。
+  # 这样只有 fh×fw 次循环（例如 3×3 滤波器只循环 9 次），
+  # 每次都用 numpy 批量处理全图，速度极快。
+
+  filtered_image = np.zeros_like(image, dtype=np.float32)  # 初始化输出为全零
+  for i in range(fh):          # 遍历滤波器的每一行
+    for j in range(fw):        # 遍历滤波器的每一列
+      # filter[i, j]             — 当前滤波器权重（标量）
+      # padded[i:i+m, j:j+n, :] — 从填充图中取出与原图同尺寸的窗口
+      #                            相当于把图像向上平移 i、向左平移 j 后的版本
+      # 这一行等价于：对图像中所有像素同时乘以权重再累加
       filtered_image += filter[i, j] * padded[i:i + m, j:j + n, :]
 
+  # ----------------------------------------------------------
+  # 步骤 4：如果输入是灰度图，把维度压缩回去
+  # ----------------------------------------------------------
   if squeeze:
-    filtered_image = filtered_image[:, :, 0]
+    filtered_image = filtered_image[:, :, 0]  # (m, n, 1) → (m, n)
 
   ### END OF STUDENT CODE ####
   ############################
 
   return filtered_image
 
+
+# ============================================================
+# 第二部分：混合图像生成 (Hybrid Image)
+# ============================================================
+#
+# 【核心概念】什么是混合图像？
+# 混合图像（Hybrid Image）是把两张图片合成在一起：
+#   - 近距离看：看到的是高频细节（边缘、纹理）更多的那张图
+#   - 远距离看：高频信息被眼睛滤掉，只看到低频（轮廓、颜色块）的那张图
+#
+# 实现原理：
+#   低频图 = 对图像1做高斯模糊（保留轮廓，去掉细节）
+#   高频图 = 图像2 减去 图像2的高斯模糊（只剩下细节和边缘）
+#   混合图 = 低频图 + 高频图
+#
+# 【高斯滤波器】是最常用的低通滤波器，形状像一个钟形曲面，
+# 中心权重大、边缘权重小，能平滑图像（去除高频噪声和细节）。
+# cutoff_frequency（截止频率）越大，高斯核越宽，模糊程度越强。
+#
+# 【空间频率的直觉理解】
+# - 低频：图像中变化缓慢的部分（大块颜色区域、整体轮廓）
+# - 高频：图像中变化剧烈的部分（边缘、纹理、噪点）
+# 模糊 = 低通滤波（只保留低频）
+# 原图 - 模糊图 = 高通滤波（只保留高频）
+
 def create_hybrid_image(image1, image2, filter):
   """
-  Takes two images and creates a hybrid image. Returns the low
-  frequency content of image1, the high frequency content of
-  image 2, and the hybrid image.
+  Takes two images and creates a hybrid image.
+  将两张图像合成为一张混合图像。
 
   Args
-  - image1: numpy nd-array of dim (m, n, c)
-  - image2: numpy nd-array of dim (m, n, c)
+  - image1: numpy nd-array of dim (m, n, c)  提供低频（轮廓）的图像
+  - image2: numpy nd-array of dim (m, n, c)  提供高频（细节）的图像
+  - filter: numpy nd-array (高斯滤波器)
   Returns
-  - low_frequencies: numpy nd-array of dim (m, n, c)
-  - high_frequencies: numpy nd-array of dim (m, n, c)
-  - hybrid_image: numpy nd-array of dim (m, n, c)
-
-  HINTS:
-  - You will use your my_imfilter function in this function.
-  - You can get just the high frequency content of an image by removing its low
-    frequency content. Think about how to do this in mathematical terms.
-  - Don't forget to make sure the pixel values are >= 0 and <= 1. This is known
-    as 'clipping'.
-  - If you want to use images with different dimensions, you should resize them
-    in the notebook code.
+  - low_frequencies:  图像1的低频内容（模糊后的图像1）
+  - high_frequencies: 图像2的高频内容（图像2 - 模糊后的图像2）
+  - hybrid_image:     低频 + 高频，裁剪到 [0, 1]
   """
 
+  # 两张图像必须尺寸完全相同（行数、列数、通道数都要一样）
   assert image1.shape[0] == image2.shape[0]
   assert image1.shape[1] == image2.shape[1]
   assert image1.shape[2] == image2.shape[2]
@@ -85,13 +178,32 @@ def create_hybrid_image(image1, image2, filter):
   ############################
   ### TODO: YOUR CODE HERE ###
 
-  # Low-pass filter image1 to keep only its low frequencies
+  # ----------------------------------------------------------
+  # 步骤 1：提取图像1的低频内容（低通滤波）
+  # ----------------------------------------------------------
+  # 用高斯滤波器对 image1 做卷积 = 模糊图像1
+  # 模糊后，高频细节（边缘、纹理）被平均掉了，只剩下低频的轮廓和颜色
   low_frequencies = my_imfilter(image1, filter)
+  # low_frequencies 的像素值仍在 [0, 1] 范围内（模糊不会改变值域）
 
-  # High-pass filter image2: subtract its blurred version to keep edges/details
+  # ----------------------------------------------------------
+  # 步骤 2：提取图像2的高频内容（高通滤波）
+  # ----------------------------------------------------------
+  # 先用同一个高斯滤波器模糊 image2，得到它的低频部分
+  # 然后用原图减去低频部分，就只剩下高频细节了
+  # 注意：高频图的像素值可能是负数（因为做了减法）！
+  # 这在数学上是正确的，代表"这个像素比周围邻居亮"或"暗"多少。
   high_frequencies = image2 - my_imfilter(image2, filter)
+  # high_frequencies 的范围大约是 [-0.5, 0.5]（零均值）
 
-  # Combine and clip pixel values to valid [0, 1] range
+  # ----------------------------------------------------------
+  # 步骤 3：合成混合图像并裁剪（Clipping）
+  # ----------------------------------------------------------
+  # 把低频图和高频图直接相加
+  # 低频部分（均值约 0.5）+ 高频部分（均值约 0）= 混合图（均值约 0.5）
+  # 但相加后可能出现 <0 或 >1 的非法像素值，需要裁剪到 [0, 1]
+  # np.clip(array, a_min, a_max) 把所有小于 a_min 的值改为 a_min，
+  #                              把所有大于 a_max 的值改为 a_max
   hybrid_image = np.clip(low_frequencies + high_frequencies, 0.0, 1.0)
 
   ### END OF STUDENT CODE ####
