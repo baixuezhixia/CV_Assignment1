@@ -27,8 +27,27 @@ def my_imfilter(image, filter):
   ############################
   ### TODO: YOUR CODE HERE ###
 
-  raise NotImplementedError('`my_imfilter` function in `student_code.py` ' +
-    'needs to be implemented')
+  # Handle both grayscale (2D) and color (3D) images uniformly
+  squeeze = False
+  if image.ndim == 2:
+    image = image[:, :, np.newaxis]
+    squeeze = True
+
+  m, n, c = image.shape
+  fh, fw = filter.shape
+  ph, pw = fh // 2, fw // 2
+
+  # Pad image with reflected content to preserve edge information
+  padded = np.pad(image, ((ph, ph), (pw, pw), (0, 0)), mode='reflect')
+
+  # Accumulate the weighted, shifted copies of the padded image
+  filtered_image = np.zeros_like(image, dtype=np.float32)
+  for i in range(fh):
+    for j in range(fw):
+      filtered_image += filter[i, j] * padded[i:i + m, j:j + n, :]
+
+  if squeeze:
+    filtered_image = filtered_image[:, :, 0]
 
   ### END OF STUDENT CODE ####
   ############################
@@ -66,8 +85,14 @@ def create_hybrid_image(image1, image2, filter):
   ############################
   ### TODO: YOUR CODE HERE ###
 
-  raise NotImplementedError('`create_hybrid_image` function in ' + 
-    '`student_code.py` needs to be implemented')
+  # Low-pass filter image1 to keep only its low frequencies
+  low_frequencies = my_imfilter(image1, filter)
+
+  # High-pass filter image2: subtract its blurred version to keep edges/details
+  high_frequencies = image2 - my_imfilter(image2, filter)
+
+  # Combine and clip pixel values to valid [0, 1] range
+  hybrid_image = np.clip(low_frequencies + high_frequencies, 0.0, 1.0)
 
   ### END OF STUDENT CODE ####
   ############################
